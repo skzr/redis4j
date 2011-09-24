@@ -6,13 +6,13 @@
  */
 package org.skzr.redis.model;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
 import org.skzr.redis.exception.RedisAuthException;
 import org.skzr.redis.exception.RedisIOException;
 import org.skzr.redis.exception.RedisOpException;
+import org.skzr.redis.model.impl.IntegerCoder;
 
 /**
  * @author <a href="mailto:skzr.org@gmail.com">skzr.org</a>
@@ -21,12 +21,14 @@ import org.skzr.redis.exception.RedisOpException;
  */
 public class RedisReader {
 	private static String utf8S = "UTF-8";
+	private CoderManager coderManager;
 	private boolean ended = false;
 	private InputStream in;
 	private byte[] buf = new byte[8 * 1024];
 	private int pos = 0, len = 0;
 
-	public RedisReader(InputStream in) {
+	public RedisReader(CoderManager coderManager, InputStream in) {
+		this.coderManager = coderManager;
 		this.in = in;
 	}
 	
@@ -80,6 +82,10 @@ public class RedisReader {
 		return bout;
 	}
 	
+	private int readIntCrLf() throws IOException {
+		return IntegerCoder.toInteger(readCrLf().getBuf());
+	}
+	
 	private String readStatusReply() throws IOException {
 		ByteArrayOutputStream bout = readCrLf();
 		return bout.toString(utf8S);
@@ -101,6 +107,15 @@ public class RedisReader {
 			return readStatusReply();
 		case '-':
 			readErrorReply();
+		case '$':
+		{
+			int len = readIntCrLf();
+			if (len == -1) return null;
+			
+			byte[] buf = readCrLf().getBuf(); 
+			ICoder<Object> coder = coderManager.getCoderByKey(buf[0]);
+			return coder.decode(buf, 1, buf.length - 1);
+		}
 		default:
 			break;
 		}

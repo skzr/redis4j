@@ -12,5 +12,7 @@ package org.skzr.redis;
  * @since JDK1.6
  */
 public enum Command {
-	AUTH, PING, SELECT
+	AUTH, PING, SELECT,
+	
+	SET, GET
 }

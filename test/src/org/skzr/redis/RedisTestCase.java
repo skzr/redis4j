@@ -60,5 +60,9 @@ public class RedisTestCase {
 		
 		redis.select(11);
 		redis.selectAndStore(11, "__database");
+		Assert.assertEquals(11, redis.get("__database"));
+		
+		redis.set(123, 123);
+		Assert.assertEquals(123, redis.get(123));
 	}
 }

@@ -11,6 +11,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 
 import org.skzr.redis.exception.RedisIOException;
+import org.skzr.redis.model.CoderManager;
 import org.skzr.redis.model.RedisReader;
 import org.skzr.redis.model.RedisWriter;
 
@@ -25,6 +26,7 @@ import org.skzr.redis.model.RedisWriter;
 public class Redis {
 	private String hostname;
 	private int port = 6379, timeout = 1000;
+	private CoderManager coderManager = new CoderManager();
 	private Socket socket;
 	private RedisWriter writer;
 	private RedisReader reader;
@@ -38,14 +40,14 @@ public class Redis {
 		this.hostname = hostname;
 		if (port != null) this.port = port;
 	}
-
+	
 	public void connect() {
 		socket = new Socket();
 		try {
 			socket.connect(new InetSocketAddress(hostname, port), timeout);
 			socket.setSoTimeout(timeout);
-			writer = new RedisWriter(socket.getOutputStream());
-			reader = new RedisReader(socket.getInputStream());
+			writer = new RedisWriter(coderManager, socket.getOutputStream());
+			reader = new RedisReader(coderManager, socket.getInputStream());
 		} catch (IOException e) {
 			throw new RedisIOException(e);
 		}
@@ -53,7 +55,7 @@ public class Redis {
 	
 	public void auth(String password) {
 		try {
-			writer.send(Command.AUTH, password);
+			writer.send(false, Command.AUTH, password);
 			writer.flush();
 			reader.read();
 		} catch (IOException e) {
@@ -78,7 +80,7 @@ public class Redis {
 
 	public void select(int index) {
 		try {
-			writer.send(Command.SELECT, index);
+			writer.send(false, Command.SELECT, Integer.toString(index));
 			writer.flush();
 			reader.read();
 		} catch (IOException e) {
@@ -88,7 +90,28 @@ public class Redis {
 	
 	public void selectAndStore(int index, Object key) {
 		select(index);
-		
+		set(key, index);
+	}
+	
+	public void set(Object key, Object value) {
+		try {
+			writer.send(Command.SET, key, value);
+			writer.flush();
+			reader.read();
+		} catch (IOException e) {
+			throw new RedisIOException(e);
+		}
+	}
+	
+	@SuppressWarnings("unchecked")
+	public <T> T get(Object key) {
+		try {
+			writer.send(Command.GET, key);
+			writer.flush();
+			return (T) reader.read();
+		} catch (IOException e) {
+			throw new RedisIOException(e);
+		}
 	}
 	
 }

@@ -26,9 +26,11 @@ public class RedisWriter {
 	private static Map<Integer, byte[]> intCache = new HashMap<Integer, byte[]>(intCacheMax);
 	private static byte[] crlf = new byte[] {'\r', '\n'};
 	private static byte[] nullArg = new byte[] {'$', '-', '1', '\r', '\n'};
+	private CoderManager coderManager = new CoderManager();
 	private BufferedOutputStream out;
 	
-	public RedisWriter(OutputStream out) {
+	public RedisWriter(CoderManager coderManager, OutputStream out) {
+		this.coderManager = coderManager;
 		this.out = out instanceof BufferedOutputStream ? (BufferedOutputStream) out :
 			new BufferedOutputStream(out, 8 * 1024);
 	}
@@ -46,12 +48,7 @@ public class RedisWriter {
 		out.write(crlf);
 	}
 	
-	private void sendStrArgument(String value) throws IOException {
-		if (value == null) {
-			out.write(nullArg);
-			return;
-		}
-		
+	private void writeCommand(String value) throws IOException {
 		byte[] bytes = value.getBytes(utf8);
 		out.write('$');
 		writeIntCrLf(bytes.length);
@@ -59,16 +56,38 @@ public class RedisWriter {
 		out.write(crlf);
 	}
 	
+	public void writeCrLf() throws IOException {
+		out.write(crlf);
+	}
 	public void flush() throws IOException {
 		out.flush();
 	}
 	
 	public void send(Command command, Object... arguments) throws IOException {
+		send(true, command, arguments);
+	}
+	
+	public void send(boolean encode, Command command, Object... arguments) throws IOException {
 		out.write('*');
 		writeIntCrLf(arguments.length + 1);
-		sendStrArgument(command.name());
+		
+		writeCommand(command.name());
 		for (Object argument : arguments) {
-			sendStrArgument(argument.toString());
+			ICoder<Object> coder = coderManager.getCoder(argument);
+			byte[] raw = coder.encode(argument);
+			if (raw == null) {
+				out.write(nullArg);
+			} else {
+				out.write('$');
+				if (encode) {
+					writeIntCrLf(raw.length + 1);
+					out.write(coder.getKey());
+				} else {
+					writeIntCrLf(raw.length);
+				}
+				out.write(raw);
+				out.write(crlf);
+			}
 		}
 	}
 }
