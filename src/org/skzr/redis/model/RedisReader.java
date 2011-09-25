@@ -12,7 +12,6 @@ import java.io.InputStream;
 import org.skzr.redis.exception.RedisAuthException;
 import org.skzr.redis.exception.RedisIOException;
 import org.skzr.redis.exception.RedisOpException;
-import org.skzr.redis.model.impl.IntegerCoder;
 
 /**
  * @author <a href="mailto:skzr.org@gmail.com">skzr.org</a>
@@ -68,10 +67,12 @@ public class RedisReader {
 			
 			find = findCrLf(buf, pos, len);
 			if (find >= 0) {//找到
-				final int off = pos, length = find - pos;
-				pos = find + 2;
-				len -= length + 2;
-				if (length > 0) bout.write(buf, off, length);
+				try {
+					if (find > pos) bout.write(buf, pos, find - pos);
+				} finally {
+					len -= find - pos + 2;
+					pos = find + 2;
+				}
 				break;
 			} else if (find == -1) {
 				bout.write(buf, pos, len);
@@ -81,19 +82,40 @@ public class RedisReader {
 		
 		return bout;
 	}
+	private ByteArrayOutputStream readCrLf(int size) throws IOException {
+		if (size < 0) return null;
+		if (size == 0) return readCrLf();
+		fill();
+		ByteArrayOutputStream bout = new ByteArrayOutputStream(size);
+		if (len < size) {
+			final int length = len;
+			len = 0;
+			bout.write(buf, pos, length);
+			ByteArrayOutputStream other = readCrLf(size - length);
+			bout.write(other.getBuf(), 0, other.size());
+		} else {
+			try {
+				bout.write(buf, pos, size);
+			} finally {
+				pos += size;
+				len -= size;
+			}
+			readCrLf();
+		}
+		return bout;
+	}
 	
 	private int readIntCrLf() throws IOException {
-		return IntegerCoder.toInteger(readCrLf().getBuf());
+		ByteArrayOutputStream bout = readCrLf();
+		return Integer.parseInt(new String(bout.getBuf(), 0, bout.size(), utf8S));
 	}
 	
 	private String readStatusReply() throws IOException {
-		ByteArrayOutputStream bout = readCrLf();
-		return bout.toString(utf8S);
+		return readCrLf().toString(utf8S);
 	}
 	
 	private void readErrorReply() throws IOException, RedisOpException {
-		ByteArrayOutputStream bout = readCrLf();
-		String message = bout.toString(utf8S);
+		String message = readCrLf().toString(utf8S);
 		throw "ERR operation not permitted".equals(message) || "ERR invalid password".equals(message) ?
 				new RedisAuthException(message) : new RedisOpException(message);
 	}
@@ -103,19 +125,22 @@ public class RedisReader {
 		char first = (char) buf[pos++];
 		len--;
 		switch (first) {
-		case '+':
-			return readStatusReply();
-		case '-':
-			readErrorReply();
 		case '$':
 		{
 			int len = readIntCrLf();
 			if (len == -1) return null;
 			
-			byte[] buf = readCrLf().getBuf(); 
+			byte[] buf = readCrLf(len).getBuf();
+			if (len == 0) return null;
 			ICoder<Object> coder = coderManager.getCoderByKey(buf[0]);
-			return coder.decode(buf, 1, buf.length - 1);
+			return coder.decode(buf, 1, len - 1);
 		}
+		case ':':
+			return readIntCrLf();
+		case '+':
+			return readStatusReply();
+		case '-':
+			readErrorReply();
 		default:
 			break;
 		}

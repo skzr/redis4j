@@ -55,7 +55,7 @@ public class Redis {
 	
 	public void auth(String password) {
 		try {
-			writer.send(false, Command.AUTH, password);
+			writer.send(UtilRedis.firstNoEncoder, Command.AUTH, password);
 			writer.flush();
 			reader.read();
 		} catch (IOException e) {
@@ -80,7 +80,7 @@ public class Redis {
 
 	public void select(int index) {
 		try {
-			writer.send(false, Command.SELECT, Integer.toString(index));
+			writer.send(UtilRedis.firstNoEncoder, Command.SELECT, Integer.toString(index));
 			writer.flush();
 			reader.read();
 		} catch (IOException e) {
@@ -113,5 +113,24 @@ public class Redis {
 			throw new RedisIOException(e);
 		}
 	}
-	
+
+	/** {@link #expire(Object, int) call expire(Object, 0)} */
+	public boolean expire(Object id) {
+		return expire(id, 0);
+	}
+	/**
+	 * 设置过期时间
+	 * @param key
+	 * @param second
+	 * @return
+	 */
+	public boolean expire(Object key, int second) {
+		try {
+			writer.send(UtilRedis.secondNoEncoder, Command.EXPIRE, key, String.valueOf(second));
+			writer.flush();
+			return UtilRedis.one.equals(reader.read());
+		} catch (IOException e) {
+			throw new RedisIOException(e);
+		}
+	}
 }

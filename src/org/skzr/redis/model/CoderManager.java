@@ -10,7 +10,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.skzr.redis.model.impl.IntegerCoder;
-import org.skzr.redis.model.impl.NullCoder;
 import org.skzr.redis.model.impl.StringCoder;
 
 /**
@@ -32,7 +31,6 @@ public class CoderManager {
 		for (ICoder<?> coder : defaultCoders.values()) {
 			defaultCodersByKey.put(coder.getKey(), coder);
 		}
-		defaultCoders.put(null, new NullCoder());
 	}
 	
 	@SuppressWarnings("unchecked")

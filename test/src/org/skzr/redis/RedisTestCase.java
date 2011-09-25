@@ -64,5 +64,32 @@ public class RedisTestCase {
 		
 		redis.set(123, 123);
 		Assert.assertEquals(123, redis.get(123));
+		
+		Assert.assertTrue(redis.expire(123));
+		
+		redis.set(123, -123);
+		Assert.assertEquals(-123, redis.get(123));
+		
+		redis.set(0, 65);
+		Assert.assertEquals(65, redis.get(0));
+		
+		redis.set(65, 0);
+		Assert.assertEquals(0, redis.get(65));
+		
+		redis.set(-1, 0);
+		Assert.assertEquals(0, redis.get(-1));
+		
+		redis.set("abc", null);
+		Assert.assertEquals(null, redis.get("abc"));
+		
+		redis.set("", "");
+		Assert.assertEquals("", redis.get(""));
+		
+		Assert.assertEquals(null, redis.get("123"));
+		redis.set("", null);
+		Assert.assertEquals(null, redis.get(""));
+		
+		Assert.assertNull(redis.get("哈哈abc"));
 	}
+	
 }

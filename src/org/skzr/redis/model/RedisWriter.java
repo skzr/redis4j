@@ -25,7 +25,7 @@ public class RedisWriter {
 	private static int intCacheMax = 127;
 	private static Map<Integer, byte[]> intCache = new HashMap<Integer, byte[]>(intCacheMax);
 	private static byte[] crlf = new byte[] {'\r', '\n'};
-	private static byte[] nullArg = new byte[] {'$', '-', '1', '\r', '\n'};
+	private static byte[] nullArg = new byte[] {'$', '0', '\r', '\n', '\r', '\n'};
 	private CoderManager coderManager = new CoderManager();
 	private BufferedOutputStream out;
 	
@@ -64,26 +64,28 @@ public class RedisWriter {
 	}
 	
 	public void send(Command command, Object... arguments) throws IOException {
-		send(true, command, arguments);
+		send(null, command, arguments);
 	}
 	
-	public void send(boolean encode, Command command, Object... arguments) throws IOException {
+	public void send(boolean[] noEncode, Command command, Object... arguments) throws IOException {
 		out.write('*');
 		writeIntCrLf(arguments.length + 1);
 		
 		writeCommand(command.name());
-		for (Object argument : arguments) {
-			ICoder<Object> coder = coderManager.getCoder(argument);
-			byte[] raw = coder.encode(argument);
-			if (raw == null) {
+		final boolean noEncodeNotNull = noEncode != null;
+		for (int i = 0, len = arguments.length; i < len; i++) {
+			Object arg = arguments[i];
+			if (arg == null) {
 				out.write(nullArg);
 			} else {
+				ICoder<Object> coder = coderManager.getCoder(arg);
+				byte[] raw = coder.encode(arg);
 				out.write('$');
-				if (encode) {
+				if (noEncodeNotNull && i < noEncode.length && noEncode[i]) {//不编码
+					writeIntCrLf(raw.length);
+				} else {
 					writeIntCrLf(raw.length + 1);
 					out.write(coder.getKey());
-				} else {
-					writeIntCrLf(raw.length);
 				}
 				out.write(raw);
 				out.write(crlf);
